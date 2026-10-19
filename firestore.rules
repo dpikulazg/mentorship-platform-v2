@@ -1,0 +1,254 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (required, 'admin' or 'user')
+    //   - languagePreference: string ('en' or 'hr')
+    //   - createdAt: string (date-time)
+    //
+    // Collection: content
+    // Document ID: {contentId}
+    // Fields:
+    //   - key: string (required)
+    //   - en: string (required)
+    //   - hr: string (required)
+    //   - type: string (required, 'text', 'html', 'image')
+    //   - lastUpdated: string
+    //   - updatedBy: string
+    //
+    // Collection: settings
+    // Document ID: global
+    // Fields:
+    //   - monetizationEnabled: bool
+    //   - subscriptionPrice: number
+    //   - currency: string
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          request.auth.token.email == "dado.zaprudje@gmail.com" ||
+          request.auth.token.email == "zagreb.dado.piksi@gmail.com"
+        );
+    }
+
+    function isMentor() {
+      return isAuthenticated() && 
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'mentor'
+        );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 128 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'user', 'mentor'] &&
+             (!('status' in data) || data.status in ['pending', 'active', 'suspended']) &&
+             (!('tierValue' in data) || data.tierValue is number) &&
+             (!('serviceAccessExpiresAt' in data) || data.serviceAccessExpiresAt is string) &&
+             (!('availableCredits' in data) || data.availableCredits is number) &&
+             (!('plan' in data) || data.plan in ['starter', 'pro', 'mentorship']);
+    }
+
+    function isValidContent(data) {
+      return data.keys().hasAll(['key', 'en', 'hr', 'type']) &&
+             data.key is string && data.key.size() > 0 && data.key.size() < 100 &&
+             data.en is string && data.en.size() < 10000 &&
+             data.hr is string && data.hr.size() < 10000 &&
+             data.type in ['text', 'html', 'image'];
+    }
+
+    function isValidModule(data) {
+      return data.keys().hasAll(['id', 'title', 'description', 'order']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.description is string && data.description.size() < 10000 &&
+             data.order is number;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['id', 'moduleId', 'title', 'videoUrl', 'duration', 'order']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.moduleId is string && data.moduleId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.videoUrl is string && data.videoUrl.size() > 0 && data.videoUrl.size() < 1000 &&
+             data.duration is string && data.duration.size() < 50 &&
+             data.order is number;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'type', 'price', 'description', 'isActive']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.type in ['subscription', 'one_time'] &&
+             data.price is number && data.price >= 0 &&
+             data.description is string && data.description.size() < 1000 &&
+             (!('grantedTierValue' in data) || data.grantedTierValue is number) &&
+             (!('serviceDurationMonths' in data) || data.serviceDurationMonths is number) &&
+             (!('grantedCredits' in data) || data.grantedCredits is number) &&
+             data.isActive is bool;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['id', 'userId', 'productId', 'amount', 'currency', 'status', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.productId is string && data.productId.size() > 0 &&
+             data.amount is number && data.amount >= 0 &&
+             data.currency is string && data.currency.size() == 3 &&
+             data.status in ['pending', 'completed', 'failed', 'refunded'] &&
+             data.createdAt is string;
+    }
+
+    function isValidTradeSubmission(data) {
+      return data.keys().hasAll(['id', 'userId', 'pair', 'status', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.pair is string && data.pair.size() > 0 && data.pair.size() < 20 &&
+             data.status in ['pending', 'reviewed'] &&
+             (!('orderEntry' in data) || data.orderEntry is number) &&
+             (!('orderExit' in data) || data.orderExit is number) &&
+             (!('pnl' in data) || data.pnl is number) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('mentorFeedback' in data) || data.mentorFeedback is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidCreditLedgerEntry(data) {
+      return data.keys().hasAll(['id', 'userId', 'type', 'amount', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.type in ['granted', 'held', 'released', 'consumed', 'expired'] &&
+             data.amount is number &&
+             (!('relatedEntityId' in data) || data.relatedEntityId is string) &&
+             (!('notes' in data) || data.notes is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['id', 'userId', 'status', 'scheduledAt', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             (!('mentorId' in data) || data.mentorId is string) &&
+             data.status in ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'] &&
+             data.scheduledAt is string &&
+             data.createdAt is string &&
+             data.updatedAt is string;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    request.resource.data.uid == request.auth.uid &&
+                    (request.resource.data.role in ['user', 'mentor'] || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (
+                      (
+                        isOwner(userId) && 
+                        request.resource.data.uid == request.auth.uid && 
+                        request.resource.data.role == resource.data.role &&
+                        (!('status' in resource.data) || !('status' in request.resource.data) || request.resource.data.status == resource.data.status) &&
+                        (!('plan' in resource.data) || !('plan' in request.resource.data) || request.resource.data.plan == resource.data.plan)
+                      ) || 
+                      isAdmin()
+                    );
+    }
+
+    match /content/{contentId} {
+      allow read: if true; // Publicly readable
+      allow write: if isAdmin() && isValidContent(request.resource.data);
+    }
+
+    match /settings/global {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /modules/{moduleId} {
+      allow read: if true;
+      allow write: if isAdmin() && (request.method == 'delete' || isValidModule(request.resource.data));
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isAdmin() && (request.method == 'delete' || isValidLesson(request.resource.data));
+    }
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin() && (request.method == 'delete' || isValidProduct(request.resource.data));
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidTransaction(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{parentUserId}/credit_ledger/{entryId} {
+      allow read: if isOwner(parentUserId) || isAdmin();
+      allow create: if (isAdmin() || (isOwner(parentUserId) && request.resource.data.type in ['held', 'released'])) && isValidCreditLedgerEntry(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid && isValidBooking(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /{path=**}/trades/{tradeId} {
+      allow read: if isAdmin();
+    }
+
+    match /users/{parentUserId}/trades/{tradeId} {
+      allow read: if isOwner(parentUserId) || isAdmin();
+      allow create: if isOwner(parentUserId) && isValidTradeSubmission(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(parentUserId) && isValidTradeSubmission(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == resource.data.status && 
+                    (!('mentorFeedback' in request.resource.data) || request.resource.data.mentorFeedback == resource.data.mentorFeedback) ||
+                    isAdmin();
+      allow delete: if isOwner(parentUserId) || isAdmin();
+    }
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "languagePreference": { "type": "string", "enum": ["en", "hr"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "plan": { "type": "string", "enum": ["starter", "pro", "mentorship"] },
+        "tierValue": { "type": "number" },
+        "serviceAccessExpiresAt": { "type": "string", "format": "date-time" },
+        "availableCredits": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "active", "suspended"] }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Content": {
+      "title": "Content",
+      "description": "CMS content item",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "en": { "type": "string" },
+        "hr": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "html", "image"] },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["key", "en", "hr", "type"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "monetizationEnabled": { "type": "boolean" },
+        "subscriptionPrice": { "type": "number" },
+        "currency": { "type": "string" }
+      }
+    },
+    "Module": {
+      "title": "Module",
+      "description": "A learning module containing several lessons",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "description", "order"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "An individual video lesson linked to a module",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "moduleId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "duration": { "type": "string" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "moduleId", "title", "videoUrl", "duration", "order"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Subscription plans and one-time purchases",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["subscription", "one_time"] },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "grantedTierValue": { "type": "number" },
+        "serviceDurationMonths": { "type": "number" },
+        "grantedCredits": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "type", "price", "description", "isActive"]
+    },
+    "CreditLedgerEntry": {
+      "title": "CreditLedgerEntry",
+      "description": "Immutable ledger for time-boxed credits",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["granted", "held", "released", "consumed", "expired"] },
+        "amount": { "type": "number" },
+        "relatedEntityId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "type", "amount", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Scheduled 1:1 mentorship calls",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "mentorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled", "no_show"] },
+        "scheduledAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "status", "scheduledAt", "createdAt", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Records of purchases for revenue tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "productId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed", "refunded"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "productId", "amount", "currency", "status", "createdAt"]
+    },
+    "TradeSubmission": {
+      "title": "TradeSubmission",
+      "description": "User submitted trades for mentor analysis",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "pair": { "type": "string" },
+        "orderEntry": { "type": "number" },
+        "orderExit": { "type": "number" },
+        "pnl": { "type": "number" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed"] },
+        "mentorFeedback": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "pair", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/content/{contentId}": {
+      "schema": "Content",
+      "description": "CMS content"
+    },
+    "/settings/global": {
+      "schema": "Settings",
+      "description": "Global app settings"
+    },
+    "/modules/{moduleId}": {
+      "schema": "Module",
+      "description": "Learning modules"
+    },
+    "/lessons/{lessonId}": {
+      "schema": "Lesson",
+      "description": "Video lessons belonging to modules"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Products (subscriptions and one off items)"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Records of user transactions"
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": "TradeSubmission",
+      "description": "User submitted trades for analysis"
+    },
+    "/users/{userId}/credit_ledger/{entryId}": {
+      "schema": "CreditLedgerEntry",
+      "description": "User credit ledger operations"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Scheduled calls/bookings"
+    }
+  }
+}

@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+    --font-heading: "Syne", sans-serif;
+    --font-serif: "Playfair Display", serif;
+    --font-sans: "Inter", sans-serif;
+    --font-mono: "Space Mono", monospace;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+
+    @keyframes scan {
+      from { transform: translateY(-100%); }
+      to { transform: translateY(100%); }
+    }
+}
+
+:root {
+    --background: #050507;
+    --foreground: #D1D1D1;
+    --card: #0A0A0C;
+    --card-foreground: #E2E2E6;
+    --popover: #0A0A0C;
+    --popover-foreground: #E2E2E6;
+    --primary: #AF46FF;
+    --primary-foreground: #000000;
+    --secondary: #0F0F12;
+    --secondary-foreground: #D1D1D1;
+    --muted: #0F0F12;
+    --muted-foreground: #666666;
+    --accent: rgba(175, 70, 255, 0.1);
+    --accent-foreground: #AF46FF;
+    --destructive: #FF3B3B;
+    --destructive-foreground: #FFFFFF;
+    --border: rgba(175, 70, 255, 0.1);
+    --input: rgba(175, 70, 255, 0.05);
+    --ring: #AF46FF;
+    --radius: 0px;
+    --sidebar: #0A0A0C;
+    --sidebar-foreground: #666666;
+    --sidebar-primary: #AF46FF;
+    --sidebar-primary-foreground: #000000;
+    --sidebar-accent: rgba(175, 70, 255, 0.05);
+    --sidebar-accent-foreground: #E2E2E6;
+    --sidebar-border: rgba(175, 70, 255, 0.1);
+    --sidebar-ring: #AF46FF;
+    --accent-purple: #AF46FF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/30;
+    background-image: 
+      linear-gradient(rgba(175, 70, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(175, 70, 255, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    }
+  html {
+    @apply font-mono;
+    }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight;
+  }
+}
+
+.glow-cursor {
+  cursor: crosshair;
+  position: relative;
+}
+
+.scanning-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--primary), transparent);
+  opacity: 0.1;
+  pointer-events: none;
+  animation: scan 8s linear infinite;
+  z-index: 50;
+}
