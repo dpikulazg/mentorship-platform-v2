@@ -145,6 +145,51 @@ export interface Transaction {
   createdAt: string;
 }
 
+export type ModerationStatus = 'pending' | 'under_review' | 'approved' | 'rejected';
+export type ModerationContentType = 'trade' | 'setup' | 'question' | 'resource';
+
+export interface ModerationItem {
+  id: string;
+  userId: string;
+  userEmail: string;
+  contentType: ModerationContentType;
+  title: string;
+  description?: string;
+  status: ModerationStatus;
+  flagged?: boolean;
+  rejectionReason?: string;
+  reviewerNotes?: string;
+  reviewerId?: string;
+  reviewerEmail?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  payload?: {
+    pair?: string;
+    orderEntry?: number;
+    orderExit?: number;
+    stopLoss?: number;
+    takeProfit?: number;
+    riskRewardRatio?: number;
+    pnl?: number;
+    chartUrl?: string;
+    emotion?: string;
+    exchange?: string;
+    timeframe?: string;
+  };
+}
+
+export interface UserNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'approved' | 'rejected' | 'info' | 'warning';
+  read: boolean;
+  relatedSubmissionId?: string;
+  createdAt: string;
+}
+
 export interface TradeSubmission {
   id: string;
   userId: string;
@@ -153,8 +198,10 @@ export interface TradeSubmission {
   orderExit?: number;
   pnl?: number;
   notes?: string;
-  status: 'pending' | 'reviewed';
+  status: 'pending' | 'under_review' | 'approved' | 'reviewed' | 'rejected';
   mentorFeedback?: string;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
+

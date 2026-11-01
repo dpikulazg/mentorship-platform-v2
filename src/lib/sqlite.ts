@@ -1,5 +1,5 @@
 import initSqlJs, { Database, QueryExecResult } from 'sql.js';
-import { Module, Lesson, Affiliate, AffiliateReferral, AffiliatePayout } from '../types';
+import { Module, Lesson, Affiliate, AffiliateReferral, AffiliatePayout, ModerationItem, ModerationStatus, UserNotification } from '../types';
 
 const IDB_NAME = 'CryptoMentor_SQLite_DB';
 const IDB_VERSION = 1;
@@ -190,6 +190,36 @@ const SCHEMA_DDL = `
     FOREIGN KEY(affiliate_id) REFERENCES affiliates(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS moderation_queue (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'pending',
+    flagged INTEGER DEFAULT 0,
+    rejection_reason TEXT,
+    reviewer_notes TEXT,
+    reviewer_id TEXT,
+    reviewer_email TEXT,
+    reviewed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    payload_json TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS user_notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT DEFAULT 'info',
+    read INTEGER DEFAULT 0,
+    related_submission_id TEXT,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -239,6 +269,23 @@ function seedInitialData(db: Database) {
     ('pay-1', 'aff-1', 'DELL_FORENSIC_7', 555.00, 'crypto_usdt', 'USDT-TRC20: TX9kH...7bQp', 'TXID_9941829481A02', 'completed', datetime('now', '-14 days'), datetime('now', '-14 days')),
     ('pay-2', 'aff-2', 'ALPHA_TRADER_HR', 400.00, 'bank_iban', 'HR12 2360 0001 1234 5678', 'SEPA_REF_7718910', 'completed', datetime('now', '-10 days'), datetime('now', '-10 days')),
     ('pay-3', 'aff-3', 'BALKAN_PRO_99', 210.00, 'revolut', '@ivanrevo99', 'REV_TRX_481093', 'completed', datetime('now', '-5 days'), datetime('now', '-5 days'));
+  `);
+
+  // Moderation Queue Seed Submissions
+  db.run(`
+    INSERT OR IGNORE INTO moderation_queue (id, user_id, user_email, content_type, title, description, status, flagged, rejection_reason, reviewer_notes, reviewer_id, reviewer_email, reviewed_at, created_at, updated_at, payload_json) VALUES
+    ('mod-q-1', 'usr-test-1', 'student.trader@stampar.hr', 'trade', 'BTC/USDT 4H FVG Breakout Scalp', 'Ulaz na retestu 4-satne Fair Value Gap zone nakon likvidnosnog sweepa azijskog lowa.', 'pending', 0, NULL, NULL, NULL, NULL, NULL, datetime('now', '-2 hours'), datetime('now', '-2 hours'), '{"pair":"BTC/USDT","orderEntry":67450,"orderExit":69200,"stopLoss":66800,"riskRewardRatio":2.69,"pnl":1750,"exchange":"Binance","emotion":"neutral","timeframe":"4H"}'),
+    
+    ('mod-q-2', 'usr-test-2', 'forex.scalp@zagreb.hr', 'setup', 'ETH/USDT Institutional Accumulation Setup', 'Primijećena absorpcija na dnevnom demand bloku uz divergenciju na volumenu.', 'approved', 0, NULL, 'Izvrsna identifikacija likvidnosti i discipline oko stop-lossa. Odobreno za community showcase!', 'admin-1', 'dado.zaprudje@gmail.com', datetime('now', '-1 day'), datetime('now', '-2 days'), datetime('now', '-1 day'), '{"pair":"ETH/USDT","orderEntry":3420,"orderExit":3650,"stopLoss":3360,"riskRewardRatio":3.83,"pnl":690,"exchange":"ByBit","emotion":"disciplined","timeframe":"Daily"}'),
+    
+    ('mod-q-3', 'usr-test-3', 'fomo.retail@gmail.com', 'trade', 'SOL/USDT 15m Momentum Long', 'Ušao sam nakon zelene svijeće na vijest, bez stop-lossa jer sam očekivao pump.', 'rejected', 0, 'Missing Stop-Loss Definition & Inadequate Risk-Reward', 'Ulaz bez definiranog stop lossa direktno krši fundamentalna pravila upravljanja rizikom. Ponovite lekciju 3.1 prije ponovnog logiranja.', 'admin-1', 'dado.zaprudje@gmail.com', datetime('now', '-3 days'), datetime('now', '-4 days'), datetime('now', '-3 days'), '{"pair":"SOL/USDT","orderEntry":182.5,"orderExit":174.0,"pnl":-425,"exchange":"Binance","emotion":"fomo","timeframe":"15m"}');
+  `);
+
+  // User Notifications Seed
+  db.run(`
+    INSERT OR IGNORE INTO user_notifications (id, user_id, title, message, type, read, related_submission_id, created_at) VALUES
+    ('notif-1', 'usr-test-2', 'Trade Setup Odobren: ETH/USDT', 'Mentor dado.zaprudje@gmail.com je odobrio vaš setup: "Izvrsna identifikacija likvidnosti i discipline oko stop-lossa."', 'approved', 0, 'mod-q-2', datetime('now', '-1 day')),
+    ('notif-2', 'usr-test-3', 'Revizija Odbijena: SOL/USDT', 'Vaš trade je odbijen radi kršenja pravila rizika (Missing Stop-Loss). Pročitajte komentare mentora.', 'rejected', 0, 'mod-q-3', datetime('now', '-3 days'));
   `);
 }
 
@@ -711,5 +758,196 @@ export const sqliteService = {
       `UPDATE affiliate_referrals SET status = 'paid' WHERE affiliate_id = ? AND status = 'approved'`,
       [payout.affiliateId]
     );
+  },
+
+  // -------------------------------------------------------------
+  // Content Moderation Workflow Methods
+  // -------------------------------------------------------------
+  async getModerationItems(filterStatus?: ModerationStatus): Promise<ModerationItem[]> {
+    let sql = 'SELECT * FROM moderation_queue';
+    const params: string[] = [];
+    if (filterStatus) {
+      sql += ' WHERE status = ?';
+      params.push(filterStatus);
+    }
+    sql += ' ORDER BY created_at DESC';
+
+    const rows = await querySql<{
+      id: string;
+      user_id: string;
+      user_email: string;
+      content_type: 'trade' | 'setup' | 'question' | 'resource';
+      title: string;
+      description: string;
+      status: ModerationStatus;
+      flagged: number;
+      rejection_reason: string;
+      reviewer_notes: string;
+      reviewer_id: string;
+      reviewer_email: string;
+      reviewed_at: string;
+      created_at: string;
+      updated_at: string;
+      payload_json: string;
+    }>(sql, params);
+
+    return rows.map(r => {
+      let payload = undefined;
+      if (r.payload_json) {
+        try {
+          payload = JSON.parse(r.payload_json);
+        } catch (e) {
+          console.warn('Failed to parse payload_json for moderation item:', r.id);
+        }
+      }
+
+      return {
+        id: r.id,
+        userId: r.user_id,
+        userEmail: r.user_email,
+        contentType: r.content_type,
+        title: r.title,
+        description: r.description || '',
+        status: r.status,
+        flagged: Boolean(r.flagged),
+        rejectionReason: r.rejection_reason || undefined,
+        reviewerNotes: r.reviewer_notes || undefined,
+        reviewerId: r.reviewer_id || undefined,
+        reviewerEmail: r.reviewer_email || undefined,
+        reviewedAt: r.reviewed_at || undefined,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        payload
+      };
+    });
+  },
+
+  async saveModerationItem(item: ModerationItem): Promise<void> {
+    const payloadStr = item.payload ? JSON.stringify(item.payload) : null;
+    await executeSql(
+      `INSERT INTO moderation_queue (id, user_id, user_email, content_type, title, description, status, flagged, rejection_reason, reviewer_notes, reviewer_id, reviewer_email, reviewed_at, created_at, updated_at, payload_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         title = excluded.title,
+         description = excluded.description,
+         status = excluded.status,
+         flagged = excluded.flagged,
+         rejection_reason = excluded.rejection_reason,
+         reviewer_notes = excluded.reviewer_notes,
+         reviewer_id = excluded.reviewer_id,
+         reviewer_email = excluded.reviewer_email,
+         reviewed_at = excluded.reviewed_at,
+         updated_at = excluded.updated_at,
+         payload_json = excluded.payload_json`,
+      [
+        item.id,
+        item.userId,
+        item.userEmail,
+        item.contentType,
+        item.title,
+        item.description || null,
+        item.status,
+        item.flagged ? 1 : 0,
+        item.rejectionReason || null,
+        item.reviewerNotes || null,
+        item.reviewerId || null,
+        item.reviewerEmail || null,
+        item.reviewedAt || null,
+        item.createdAt || new Date().toISOString(),
+        item.updatedAt || new Date().toISOString(),
+        payloadStr
+      ]
+    );
+  },
+
+  async reviewModerationItem(
+    id: string,
+    status: ModerationStatus,
+    reason?: string,
+    notes?: string,
+    reviewerId?: string,
+    reviewerEmail?: string
+  ): Promise<void> {
+    const reviewedAt = new Date().toISOString();
+    await executeSql(
+      `UPDATE moderation_queue SET 
+         status = ?,
+         rejection_reason = ?,
+         reviewer_notes = ?,
+         reviewer_id = ?,
+         reviewer_email = ?,
+         reviewed_at = ?,
+         updated_at = ?
+       WHERE id = ?`,
+      [status, reason || null, notes || null, reviewerId || null, reviewerEmail || null, reviewedAt, reviewedAt, id]
+    );
+  },
+
+  async toggleFlagModerationItem(id: string, flagged: boolean): Promise<void> {
+    await executeSql(
+      `UPDATE moderation_queue SET flagged = ?, updated_at = ? WHERE id = ?`,
+      [flagged ? 1 : 0, new Date().toISOString(), id]
+    );
+  },
+
+  async deleteModerationItem(id: string): Promise<void> {
+    await executeSql('DELETE FROM moderation_queue WHERE id = ?', [id]);
+  },
+
+  // -------------------------------------------------------------
+  // User Notifications System
+  // -------------------------------------------------------------
+  async getUserNotifications(userId: string): Promise<UserNotification[]> {
+    const rows = await querySql<{
+      id: string;
+      user_id: string;
+      title: string;
+      message: string;
+      type: 'approved' | 'rejected' | 'info' | 'warning';
+      read: number;
+      related_submission_id: string;
+      created_at: string;
+    }>('SELECT * FROM user_notifications WHERE user_id = ? ORDER BY created_at DESC', [userId]);
+
+    return rows.map(r => ({
+      id: r.id,
+      userId: r.user_id,
+      title: r.title,
+      message: r.message,
+      type: r.type,
+      read: Boolean(r.read),
+      relatedSubmissionId: r.related_submission_id || undefined,
+      createdAt: r.created_at
+    }));
+  },
+
+  async addNotification(notif: UserNotification): Promise<void> {
+    await executeSql(
+      `INSERT INTO user_notifications (id, user_id, title, message, type, read, related_submission_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        notif.id,
+        notif.userId,
+        notif.title,
+        notif.message,
+        notif.type,
+        notif.read ? 1 : 0,
+        notif.relatedSubmissionId || null,
+        notif.createdAt || new Date().toISOString()
+      ]
+    );
+  },
+
+  async markNotificationAsRead(id: string): Promise<void> {
+    await executeSql('UPDATE user_notifications SET read = 1 WHERE id = ?', [id]);
+  },
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await executeSql('UPDATE user_notifications SET read = 1 WHERE user_id = ?', [userId]);
+  },
+
+  async deleteNotification(id: string): Promise<void> {
+    await executeSql('DELETE FROM user_notifications WHERE id = ?', [id]);
   }
 };
+

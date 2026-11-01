@@ -1,4 +1,4 @@
- import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
@@ -7,6 +7,7 @@ import { useDataSource } from '../hooks/useDataSource';
 import { auth } from '../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from './ui/button';
+import { NotificationBell } from './NotificationBell';
 import { LogOut, Shield, Menu, X, AlertTriangle, HardDrive } from 'lucide-react';
 
 export function Navbar() {
@@ -126,7 +127,8 @@ export function Navbar() {
             </div>
 
             {user ? (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <NotificationBell />
                 <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-white/5 border border-white/5">
                   <div className="w-5 h-5 rounded-none bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-black text-primary">
                     {user.email?.substring(0, 1).toUpperCase()}

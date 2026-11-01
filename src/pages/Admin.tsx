@@ -22,8 +22,9 @@ import { TradeAnalysisAdmin } from '../components/TradeAnalysisAdmin';
 import { AffiliateAdmin } from '../components/AffiliateAdmin';
 import { SqliteStudio } from '../components/SqliteStudio';
 import { MentorshipVideoLibrary } from '../components/MentorshipVideoLibrary';
+import { ContentModerationAdmin } from '../components/ContentModerationAdmin';
 import { useDataSource } from '../hooks/useDataSource';
-import { Target, Film } from 'lucide-react';
+import { Target, Film, ShieldAlert } from 'lucide-react';
 
 export function Admin() {
   const { t } = useTranslation();
@@ -232,6 +233,10 @@ export function Admin() {
           <TabsTrigger value="payments" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-black border border-transparent data-[state=active]:border-primary transition-all duration-300 px-5 py-2 uppercase font-mono text-xs font-bold tracking-widest">
             <Banknote className="w-4 h-4 mr-2" />
             Payments
+          </TabsTrigger>
+          <TabsTrigger value="moderation" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-black border border-transparent data-[state=active]:border-primary transition-all duration-300 px-5 py-2 uppercase font-mono text-xs font-bold tracking-widest flex items-center">
+            <ShieldAlert className="w-4 h-4 mr-2 text-amber-400" />
+            Moderation
           </TabsTrigger>
           <TabsTrigger value="trades" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-black border border-transparent data-[state=active]:border-primary transition-all duration-300 px-5 py-2 uppercase font-mono text-xs font-bold tracking-widest">
             <Target className="w-4 h-4 mr-2" />
@@ -660,6 +665,10 @@ export function Admin() {
 
         <TabsContent value="payments" className="space-y-12">
           <PaymentHistory />
+        </TabsContent>
+
+        <TabsContent value="moderation" className="space-y-12">
+          <ContentModerationAdmin />
         </TabsContent>
 
         <TabsContent value="trades" className="space-y-12">

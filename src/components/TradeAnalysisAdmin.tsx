@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { collectionGroup, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collectionGroup, onSnapshot, query, orderBy, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { TradeSubmission } from '../types';
 import { CheckCircle2, Clock, MessageSquareText, Target } from 'lucide-react';
@@ -44,12 +44,31 @@ export function TradeAnalysisAdmin() {
     try {
       // Path format: users/{userId}/trades/{tradeId}
       const ref = doc(db, 'users', selectedTrade.userId, 'trades', selectedTrade.id);
+      const now = new Date().toISOString();
       await updateDoc(ref, {
         mentorFeedback: feedback,
         status: 'reviewed',
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       });
-      toast.success('FEEDBACK TRANSMITTED');
+
+      // Transmit notification to student
+      const notifId = `notif-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      try {
+        await setDoc(doc(db, 'users', selectedTrade.userId, 'notifications', notifId), {
+          id: notifId,
+          userId: selectedTrade.userId,
+          title: `Mentor Feedback: ${selectedTrade.pair} Trade`,
+          message: feedback,
+          type: 'approved',
+          read: false,
+          relatedSubmissionId: selectedTrade.id,
+          createdAt: now
+        });
+      } catch (ne) {
+        console.warn('Could not dispatch notification:', ne);
+      }
+
+      toast.success('FEEDBACK TRANSMITTED & NOTIFICATION SENT');
       setSelectedTrade(null);
       setFeedback('');
     } catch (err) {

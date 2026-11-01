@@ -136,12 +136,34 @@ service cloud.firestore {
              data.id is string && data.id.size() > 0 &&
              data.userId is string && data.userId.size() > 0 &&
              data.pair is string && data.pair.size() > 0 && data.pair.size() < 20 &&
-             data.status in ['pending', 'reviewed'] &&
+             data.status in ['pending', 'under_review', 'approved', 'reviewed', 'rejected'] &&
              (!('orderEntry' in data) || data.orderEntry is number) &&
              (!('orderExit' in data) || data.orderExit is number) &&
              (!('pnl' in data) || data.pnl is number) &&
              (!('notes' in data) || data.notes is string) &&
              (!('mentorFeedback' in data) || data.mentorFeedback is string) &&
+             (!('rejectionReason' in data) || data.rejectionReason is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidModerationItem(data) {
+      return data.keys().hasAll(['id', 'userId', 'contentType', 'title', 'status', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.contentType in ['trade', 'setup', 'question', 'resource'] &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 300 &&
+             data.status in ['pending', 'under_review', 'approved', 'rejected'] &&
+             data.createdAt is string;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.message is string && data.message.size() < 2000 &&
+             data.type in ['approved', 'rejected', 'info', 'warning'] &&
+             data.read is bool &&
              data.createdAt is string;
     }
 
@@ -248,6 +270,21 @@ service cloud.firestore {
                     request.resource.data.status == resource.data.status && 
                     (!('mentorFeedback' in request.resource.data) || request.resource.data.mentorFeedback == resource.data.mentorFeedback) ||
                     isAdmin();
+      allow delete: if isOwner(parentUserId) || isAdmin();
+    }
+
+    match /moderation_queue/{itemId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidModerationItem(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /users/{parentUserId}/notifications/{notificationId} {
+      allow read: if isOwner(parentUserId) || isAdmin();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isOwner(parentUserId) || isAdmin();
       allow delete: if isOwner(parentUserId) || isAdmin();
     }
   }
